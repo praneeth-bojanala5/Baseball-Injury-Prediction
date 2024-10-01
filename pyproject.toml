@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "baseball2"
+version = "0.1.0"
+description = ""
+authors = ["lbench <liammbench@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pybaseball = "^2.2.7"
+pandas = "^2.2.2"
+jupyter = "^1.0.0"
+scikit-learn = "^1.4.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

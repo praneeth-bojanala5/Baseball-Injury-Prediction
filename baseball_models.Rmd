@@ -1,0 +1,159 @@
+---
+title: "Prediction of Baseball Pitching Injuries"
+author: Luke Baylon, William Bench, Praneeth Bhojanala
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Model 1 : Logistic Regression
+
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(caret)
+
+
+# Load the dataset
+
+pwd <- getwd()
+filepath <- paste(pwd, "/numerical_columns.csv", sep="")
+print(filepath)
+data <- read.csv(filepath)
+
+# Inspect the first few rows of the dataset
+head(data)
+
+# Check the structure of the dataset to understand the variable types
+str(data)
+
+# Convert 'game_precedes_injury' to a factor (1 for True, 0 for False)
+data$game_precedes_injury <- as.factor(ifelse(data$game_precedes_injury == "True", 1, 0))
+
+# Verify the conversion
+table(data$game_precedes_injury)
+
+# Select predictor variables containing 'mean' and 'std'
+predictors <- data %>%
+  select(contains("mean"), contains("std"))
+
+# Combine the predictor variables and the response variable
+model_data <- data %>%
+  select(game_precedes_injury, contains("mean"), contains("std"))
+
+# View the structure of the model_data to ensure it is correct
+str(model_data)
+
+#Split data into train and test sets
+set.seed(42)
+n <- nrow(model_data)
+train_size <- floor(0.75 * n)
+train_indices <- sample(1:n, train_size)
+
+train_Data <- model_data[train_indices, ]
+test_Data <- model_data[-train_indices, ]
+
+
+# Fit a logistic regression model
+logistic_model <- glm(game_precedes_injury ~ ., data = train_Data, family = binomial)
+
+# Summarize the model to interpret the results
+summary(logistic_model)
+
+probabilities <- predict(logistic_model, newdata = test_Data, type = "response")
+predicted_labels <- ifelse(probabilities > 0.5, 1, 0)
+predicted_labels <- factor(predicted_labels, levels = c(0, 1))
+actual_labels <- test_Data$game_precedes_injury
+
+confusionMatrix(predicted_labels, actual_labels)
+
+predicted_labels <- ifelse(probabilities > 0.01, 1, 0)
+predicted_labels <- factor(predicted_labels, levels = c(0, 1))
+actual_labels <- test_Data$game_precedes_injury
+
+confusionMatrix(predicted_labels, actual_labels)
+
+```
+## Model 2: Naive Bayes
+
+```{r}
+library(e1071)
+nb_model <- naiveBayes(game_precedes_injury ~ ., data = train_Data)
+
+predictions <- predict(nb_model, newdata = test_Data)
+actual <- test_Data$game_precedes_injury
+confusion_matrix <- table(Predicted = predictions, Actual = actual)
+
+print(confusion_matrix)
+
+```
+
+
+## Model 3: Support Vector Classification
+
+```{r}
+
+svm_model <- svm(game_precedes_injury ~ ., data = train_Data, kernel = "polynomial", scale = TRUE)
+predictions <- predict(svm_model, newdata = test_Data)
+
+actual <- test_Data$game_precedes_injury
+conf_matrix <- table(Predicted = predictions, Actual = actual)
+
+summary(svm_model)
+print(conf_matrix)
+
+
+```
+
+## Model 4: Decision Tree
+
+```{r}
+library(rpart)
+library(rpart.plot)
+library(smotefamily)
+
+
+data <- read.csv(filepath)
+data$game_precedes_injury <- ifelse(data$game_precedes_injury == "True", 1, 0)
+
+model_data <- data %>%
+  select(game_precedes_injury, contains("mean"), contains("std")) %>%
+  mutate(across(everything(), as.numeric))
+
+set.seed(42)
+sample_indices <- sample(1:nrow(model_data), 0.75 * nrow(model_data))
+train_data <- model_data[sample_indices, ]
+test_data <- model_data[-sample_indices, ]
+
+train_x <- train_data %>% select(-game_precedes_injury)
+train_y <- train_data$game_precedes_injury
+
+train_data_for_smote <- data.frame(train_x, game_precedes_injury = train_y)
+train_data_smote <- SMOTE(train_data_for_smote[, -ncol(train_data_for_smote)], train_data_for_smote$game_precedes_injury, K = 5, dup_size = 2)
+
+train_x_smote <- train_data_smote$data[, -ncol(train_data_smote$data)]
+train_y_smote <- train_data_smote$data$class
+
+train_data_smote <- data.frame(game_precedes_injury = train_y_smote, train_x_smote)
+
+print(table(train_y_smote))
+
+control <- trainControl(method = "cv", number = 10)
+decision_tree_model <- train(game_precedes_injury ~ ., data = train_data_smote, method = "rpart", trControl = control, tuneLength = 5)
+
+print(decision_tree_model$bestTune)
+
+predictions_tree <- predict(decision_tree_model, test_data)
+confusion_matrix_tree <- confusionMatrix(predictions_tree, as.factor(test_data$game_precedes_injury))
+print(confusion_matrix_tree)
+
+rpart.plot(decision_tree_model$finalModel)
+
+```
